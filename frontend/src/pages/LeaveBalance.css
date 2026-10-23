@@ -1,0 +1,334 @@
+.leave-balance-page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 30px;
+  color: #1e293b;
+}
+
+.leave-balance-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.leave-balance-header h1 {
+  margin: 0 0 8px;
+  font-size: 30px;
+}
+
+.leave-balance-header p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.leave-balance-eyebrow {
+  margin-bottom: 8px !important;
+  color: #2563eb !important;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+}
+
+.leave-balance-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.leave-balance-refresh,
+.leave-balance-apply {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 11px 17px;
+  border-radius: 9px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.leave-balance-refresh {
+  color: #1d4ed8;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
+
+.leave-balance-apply {
+  color: #fff;
+  background: #2563eb;
+  border: 1px solid #2563eb;
+}
+
+.leave-balance-apply:hover {
+  background: #1d4ed8;
+}
+
+.leave-balance-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.leave-balance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.leave-balance-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 4%);
+}
+
+.leave-balance-summary-card span {
+  color: #64748b;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.leave-balance-summary-card strong {
+  color: #0f172a;
+  font-size: 34px;
+  line-height: 1.2;
+}
+
+.leave-balance-summary-card small {
+  color: #64748b;
+  line-height: 1.5;
+}
+
+.leave-balance-section {
+  margin-bottom: 25px;
+}
+
+.leave-balance-section-heading {
+  margin-bottom: 20px;
+}
+
+.leave-balance-section-heading h2 {
+  margin: 0 0 7px;
+  font-size: 22px;
+}
+
+.leave-balance-section-heading p {
+  margin: 0;
+  color: #64748b;
+}
+
+.leave-balance-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.leave-balance-card {
+  min-width: 0;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 4%);
+}
+
+.leave-balance-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 25px;
+}
+
+.leave-balance-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  background: #eff6ff;
+  border-radius: 12px;
+  font-size: 23px;
+}
+
+.leave-balance-card-heading h3 {
+  margin: 0 0 5px;
+  font-size: 17px;
+}
+
+.leave-balance-year {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.leave-balance-missing {
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.leave-balance-missing-text {
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.leave-balance-remaining {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 20px;
+}
+
+.leave-balance-remaining strong {
+  color: #1d4ed8;
+  font-size: 36px;
+  line-height: 1.2;
+}
+
+.leave-balance-remaining span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.leave-balance-progress {
+  height: 8px;
+  overflow: hidden;
+  background: #e2e8f0;
+  border-radius: 20px;
+}
+
+.leave-balance-progress span {
+  display: block;
+  height: 100%;
+  background: #2563eb;
+  border-radius: inherit;
+  transition: width 0.25s ease;
+}
+
+.leave-balance-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.leave-balance-details div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-width: 0;
+}
+
+.leave-balance-details span {
+  color: #64748b;
+  font-size: 12px;
+}
+
+.leave-balance-details strong {
+  color: #334155;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.leave-balance-message {
+  padding: 35px 20px;
+  color: #64748b;
+  text-align: center;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+}
+
+.leave-balance-message h3 {
+  color: #334155;
+}
+
+.leave-balance-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 15px 18px;
+  margin-bottom: 22px;
+  color: #991b1b;
+  background: #fee2e2;
+  border-radius: 9px;
+}
+
+.leave-balance-error button {
+  padding: 8px 12px;
+  color: #991b1b;
+  background: #fff;
+  border: 1px solid #fecaca;
+  border-radius: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.leave-balance-note {
+  padding: 17px 20px;
+  color: #475569;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+@media (max-width: 1000px) {
+  .leave-balance-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .leave-balance-page {
+    padding: 18px;
+  }
+
+  .leave-balance-header h1 {
+    font-size: 26px;
+  }
+
+  .leave-balance-summary,
+  .leave-balance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .leave-balance-summary-card,
+  .leave-balance-card {
+    padding: 20px;
+  }
+
+  .leave-balance-actions {
+    width: 100%;
+  }
+}
+
+@media (max-width: 380px) {
+  .leave-balance-details {
+    gap: 6px;
+  }
+
+  .leave-balance-details span {
+    font-size: 11px;
+  }
+
+  .leave-balance-details strong {
+    font-size: 12px;
+  }
+}

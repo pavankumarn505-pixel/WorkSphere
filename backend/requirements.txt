@@ -1,0 +1,8 @@
+
+fastapi
+uvicorn[standard]
+sqlalchemy
+pydantic-settings
+email-validator
+python-jose[cryptography]
+pwdlib[argon2]

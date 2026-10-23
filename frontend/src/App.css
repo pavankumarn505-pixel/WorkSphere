@@ -1,0 +1,166 @@
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #e0f2fe, #f8fafc);
+}
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 35px;
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.12);
+}
+
+.login-card h1 {
+  margin-bottom: 10px;
+  color: #1d4ed8;
+  text-align: center;
+}
+
+.login-card > p {
+  color: #64748b;
+  text-align: center;
+}
+
+.login-card label {
+  display: block;
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #334155;
+}
+
+.login-card input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.login-card input:focus {
+  outline: 2px solid #93c5fd;
+  border-color: #2563eb;
+}
+
+.login-card button {
+  width: 100%;
+  margin-top: 25px;
+  padding: 13px;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.login-card button:hover {
+  background: #1d4ed8;
+}
+
+.login-card .login-footer {
+  margin-top: 25px;
+  font-size: 12px;
+}
+
+
+
+.app-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  padding: 16px 30px;
+  background: #ffffff;
+  border-bottom: 1px solid #e2e8f0;
+  box-shadow: 0 2px 10px rgb(15 23 42 / 4%);
+}
+
+.app-navigation-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1e293b;
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.app-brand-icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: white;
+  background: #2563eb;
+}
+
+.app-navigation-links {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.app-navigation-links a {
+  padding: 10px 12px;
+  color: #475569;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.app-navigation-links a:hover,
+.app-navigation-links a.active {
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.app-logout-button {
+  padding: 10px 15px;
+  color: #b91c1c;
+  background: #fff1f2;
+  border: none;
+  border-radius: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.app-logout-button:hover {
+  background: #ffe4e6;
+}
+
+@media (max-width: 600px) {
+  .app-navigation {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .app-navigation-links {
+    order: 3;
+    width: 100%;
+  }
+
+  .app-navigation-links a {
+    padding: 9px;
+  }
+}
