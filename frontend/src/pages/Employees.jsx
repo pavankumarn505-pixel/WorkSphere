@@ -13,6 +13,16 @@ const emptyForm = {
   status: "ACTIVE",
 };
 
+const emptyFilters = {
+  name: "",
+  department: "",
+  designation: "",
+  role: "",
+  employee_status: "",
+  attendance_status: "",
+  performance_rating: "",
+};
+
 function getErrorMessage(error) {
   const detail = error.response?.data?.detail;
 
@@ -41,26 +51,37 @@ function formatDate(value) {
       });
 }
 
+function formatCurrency(value) {
+  return (Number(value) || 0).toLocaleString("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 2,
+  });
+}
+
 function Employees() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [search, setSearch] = useState("");
-  const [departmentFilter, setDepartmentFilter] = useState("ALL");
-  const [statusFilter, setStatusFilter] = useState("ALL");
+
+  const [filters, setFilters] = useState({ ...emptyFilters });
+  const [activeFilters, setActiveFilters] = useState({ ...emptyFilters });
+  const [filtering, setFiltering] = useState(false);
+
   const [showForm, setShowForm] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState(null);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({ ...emptyForm });
 
+  // Load all employee records.
   const loadEmployees = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
       const response = await api.get("/employees/");
-      setEmployees(response.data);
+      setEmployees(Array.isArray(response.data) ? response.data : []);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {
@@ -72,42 +93,68 @@ function Employees() {
     loadEmployees();
   }, [loadEmployees]);
 
+  // Dropdown options from currently loaded employee records.
   const departments = useMemo(
     () =>
-      [...new Set(
-        employees
-          .map((employee) => employee.department)
-          .filter(Boolean)
-      )].sort((a, b) => a.localeCompare(b)),
+      [...new Set(employees.map((e) => e.department).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b)
+      ),
     [employees]
   );
 
-  const filteredEmployees = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const designations = useMemo(
+    () =>
+      [...new Set(employees.map((e) => e.designation).filter(Boolean))].sort(
+        (a, b) => a.localeCompare(b)
+      ),
+    [employees]
+  );
 
-    return employees.filter((employee) => {
-      const matchesSearch =
-        !query ||
-        [
-          employee.full_name,
-          employee.designation,
-          employee.department,
-          String(employee.id),
-        ].some((value) =>
-          String(value || "").toLowerCase().includes(query)
-        );
+  function handleFilterChange(event) {
+    const { name, value } = event.target;
 
-      const matchesDepartment =
-        departmentFilter === "ALL" ||
-        employee.department === departmentFilter;
+    setFilters((current) => ({
+      ...current,
+      [name]: value,
+    }));
+  }
 
-      const matchesStatus =
-        statusFilter === "ALL" ||
-        employee.status === statusFilter;
+  // Apply all selected filters through the FastAPI backend.
+  async function applyFilters(event) {
+    event?.preventDefault();
 
-      return matchesSearch && matchesDepartment && matchesStatus;
+    setFiltering(true);
+    setError("");
+    setSuccess("");
+
+    const params = {};
+
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value.trim() !== "") {
+        // FastAPI expects performance_rating as a number.
+        params[key] =
+          key === "performance_rating" ? Number(value) : value.trim();
+      }
     });
-  }, [employees, search, departmentFilter, statusFilter]);
+
+    try {
+      const response = await api.get("/employees/search", { params });
+
+      setEmployees(Array.isArray(response.data) ? response.data : []);
+      setActiveFilters({ ...filters });
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setFiltering(false);
+    }
+  }
+
+  // Clear all filters and reload the complete employee directory.
+  async function clearFilters() {
+    setFilters({ ...emptyFilters });
+    setActiveFilters({ ...emptyFilters });
+    await loadEmployees();
+  }
 
   function openAddForm() {
     setEditingEmployee(null);
@@ -119,6 +166,7 @@ function Employees() {
 
   function openEditForm(employee) {
     setEditingEmployee(employee);
+
     setForm({
       user_id: employee.user_id ?? "",
       full_name: employee.full_name ?? "",
@@ -126,8 +174,9 @@ function Employees() {
       department: employee.department ?? "",
       joining_date: employee.joining_date ?? "",
       salary: String(employee.salary ?? "0.00"),
-      status: employee.status ?? "ACTIVE",
+      status: String(employee.status || "ACTIVE").toUpperCase(),
     });
+
     setError("");
     setSuccess("");
     setShowForm(true);
@@ -139,6 +188,7 @@ function Employees() {
     setShowForm(false);
     setEditingEmployee(null);
     setForm({ ...emptyForm });
+    setError("");
   }
 
   function handleChange(event) {
@@ -152,6 +202,7 @@ function Employees() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+
     setError("");
     setSuccess("");
 
@@ -166,7 +217,9 @@ function Employees() {
     }
 
     if (designation.length < 2 || department.length < 2) {
-      setError("Designation and department must contain at least 2 characters.");
+      setError(
+        "Designation and department must contain at least 2 characters."
+      );
       return;
     }
 
@@ -176,7 +229,7 @@ function Employees() {
     }
 
     if (!Number.isFinite(salary) || salary < 0) {
-      setError("Salary must be a valid number greater than or equal to zero.");
+      setError("Salary must be zero or a positive number.");
       return;
     }
 
@@ -214,6 +267,7 @@ function Employees() {
       setShowForm(false);
       setEditingEmployee(null);
       setForm({ ...emptyForm });
+
       await loadEmployees();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -223,16 +277,24 @@ function Employees() {
   }
 
   const activeCount = employees.filter(
-    (employee) => employee.status === "ACTIVE"
+    (e) => String(e.status || "").toUpperCase() === "ACTIVE"
   ).length;
 
   const inactiveCount = employees.filter(
-    (employee) => employee.status === "INACTIVE"
+    (e) => String(e.status || "").toUpperCase() === "INACTIVE"
   ).length;
 
   const totalSalary = employees.reduce(
-    (sum, employee) => sum + (Number(employee.salary) || 0),
+    (sum, e) => sum + (Number(e.salary) || 0),
     0
+  );
+
+  const hasActiveFilters = Object.values(filters).some(
+    (value) => value.trim() !== ""
+  );
+
+  const hasAppliedFilters = Object.values(activeFilters).some(
+    (value) => value.trim() !== ""
   );
 
   return (
@@ -246,15 +308,23 @@ function Employees() {
           </p>
         </div>
 
-        <button className="employee-primary-button" onClick={openAddForm}>
-          <span aria-hidden="true">＋</span> Add Employee
+        <button
+          type="button"
+          className="employee-primary-button"
+          onClick={openAddForm}
+        >
+          ＋ Add Employee
         </button>
       </div>
 
       {error && !showForm && (
         <div className="employee-alert employee-alert-error" role="alert">
           {error}
-          <button onClick={() => setError("")} aria-label="Dismiss error">
+          <button
+            type="button"
+            onClick={() => setError("")}
+            aria-label="Dismiss error"
+          >
             ×
           </button>
         </div>
@@ -263,7 +333,11 @@ function Employees() {
       {success && (
         <div className="employee-alert employee-alert-success" role="status">
           {success}
-          <button onClick={() => setSuccess("")} aria-label="Dismiss message">
+          <button
+            type="button"
+            onClick={() => setSuccess("")}
+            aria-label="Dismiss message"
+          >
             ×
           </button>
         </div>
@@ -272,36 +346,32 @@ function Employees() {
       <section className="employee-stat-grid">
         <article className="employee-stat-card">
           <span className="employee-stat-icon">👥</span>
-          <p>Total Employees</p>
+          <p>Employees in Results</p>
           <strong>{employees.length}</strong>
-          <span className="employee-stat-note">All employee records</span>
+          <span className="employee-stat-note">Current directory results</span>
         </article>
 
         <article className="employee-stat-card">
           <span className="employee-stat-icon employee-icon-green">✓</span>
           <p>Active Employees</p>
           <strong>{activeCount}</strong>
-          <span className="employee-stat-note">Currently active</span>
+          <span className="employee-stat-note">In current results</span>
         </article>
 
         <article className="employee-stat-card">
           <span className="employee-stat-icon employee-icon-orange">Ⅱ</span>
           <p>Inactive Employees</p>
           <strong>{inactiveCount}</strong>
-          <span className="employee-stat-note">Currently inactive</span>
+          <span className="employee-stat-note">In current results</span>
         </article>
 
         <article className="employee-stat-card">
           <span className="employee-stat-icon employee-icon-purple">₹</span>
           <p>Total Listed Salary</p>
           <strong className="employee-salary-total">
-            {totalSalary.toLocaleString("en-IN", {
-              style: "currency",
-              currency: "INR",
-              maximumFractionDigits: 2,
-            })}
+            {formatCurrency(totalSalary)}
           </strong>
-          <span className="employee-stat-note">Sum of listed salaries</span>
+          <span className="employee-stat-note">Sum of current results</span>
         </article>
       </section>
 
@@ -309,30 +379,34 @@ function Employees() {
         <div className="employee-table-heading">
           <div>
             <h2>Employee Directory</h2>
-            <p>Search, filter, and manage your employee records.</p>
+            <p>Search and filter employee records using the backend API.</p>
           </div>
+
           <span className="employee-result-count">
-            {filteredEmployees.length} shown
+            {employees.length} employees
           </span>
         </div>
 
-        <div className="employee-filters">
+        <form className="employee-filters" onSubmit={applyFilters}>
           <label className="employee-search">
             <span aria-hidden="true">⌕</span>
             <input
               type="search"
-              placeholder="Search name, ID, designation..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              name="name"
+              placeholder="Search employee name..."
+              aria-label="Search employee name"
+              value={filters.name}
+              onChange={handleFilterChange}
             />
           </label>
 
           <select
+            name="department"
             aria-label="Filter by department"
-            value={departmentFilter}
-            onChange={(event) => setDepartmentFilter(event.target.value)}
+            value={filters.department}
+            onChange={handleFilterChange}
           >
-            <option value="ALL">All departments</option>
+            <option value="">All departments</option>
             {departments.map((department) => (
               <option key={department} value={department}>
                 {department}
@@ -341,47 +415,123 @@ function Employees() {
           </select>
 
           <select
-            aria-label="Filter by status"
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
+            name="designation"
+            aria-label="Filter by designation"
+            value={filters.designation}
+            onChange={handleFilterChange}
           >
-            <option value="ALL">All statuses</option>
+            <option value="">All designations</option>
+            {designations.map((designation) => (
+              <option key={designation} value={designation}>
+                {designation}
+              </option>
+            ))}
+          </select>
+
+          <select
+            name="role"
+            aria-label="Filter by user role"
+            value={filters.role}
+            onChange={handleFilterChange}
+          >
+            <option value="">All user roles</option>
+            <option value="EMPLOYEE">Employee</option>
+            <option value="HR">HR</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+
+          <select
+            name="employee_status"
+            aria-label="Filter by employment status"
+            value={filters.employee_status}
+            onChange={handleFilterChange}
+          >
+            <option value="">All employment statuses</option>
             <option value="ACTIVE">Active</option>
             <option value="INACTIVE">Inactive</option>
           </select>
+
+          <select
+            name="attendance_status"
+            aria-label="Filter by attendance status"
+            value={filters.attendance_status}
+            onChange={handleFilterChange}
+          >
+            <option value="">All attendance statuses</option>
+            <option value="PRESENT">Present</option>
+            <option value="ABSENT">Absent</option>
+            <option value="HALF_DAY">Half day</option>
+          </select>
+
+          {/* NEW: Performance rating filter */}
+          <select
+            name="performance_rating"
+            aria-label="Filter by performance rating"
+            value={filters.performance_rating}
+            onChange={handleFilterChange}
+          >
+            <option value="">All performance ratings</option>
+            <option value="1">1 Star</option>
+            <option value="2">2 Stars</option>
+            <option value="3">3 Stars</option>
+            <option value="4">4 Stars</option>
+            <option value="5">5 Stars</option>
+          </select>
+
+          <button
+            type="submit"
+            className="employee-primary-button"
+            disabled={filtering || loading}
+          >
+            {filtering ? "Searching..." : "Apply Filters"}
+          </button>
 
           <button
             type="button"
             className="employee-refresh-button"
             onClick={loadEmployees}
-            disabled={loading}
+            disabled={loading || filtering}
           >
-            ↻ Refresh
+            ↻ Refresh All
           </button>
-        </div>
 
-        {loading ? (
+          {hasActiveFilters && (
+            <button
+              type="button"
+              className="employee-cancel-button"
+              onClick={clearFilters}
+              disabled={filtering}
+            >
+              Clear Filters
+            </button>
+          )}
+        </form>
+
+        <p className="employee-stat-note">
+          {hasAppliedFilters
+            ? "Showing results for the last applied filters."
+            : "Showing all employee records."}
+        </p>
+
+        {loading || filtering ? (
           <div className="employee-empty-state">
             <span className="employee-loading-spinner" />
-            <p>Loading employee records...</p>
+            <p>
+              {filtering ? "Applying filters..." : "Loading employees..."}
+            </p>
           </div>
-        ) : filteredEmployees.length === 0 ? (
+        ) : employees.length === 0 ? (
           <div className="employee-empty-state">
             <span className="employee-empty-icon">⌕</span>
             <h3>No employees found</h3>
-            <p>
-              {employees.length === 0
-                ? "Add your first employee to get started."
-                : "Try changing your search or filter settings."}
-            </p>
-            {employees.length === 0 && (
-              <button
-                className="employee-primary-button"
-                onClick={openAddForm}
-              >
-                Add First Employee
-              </button>
-            )}
+            <p>Try different search terms or clear the filters.</p>
+            <button
+              type="button"
+              className="employee-cancel-button"
+              onClick={clearFilters}
+            >
+              Clear Filters
+            </button>
           </div>
         ) : (
           <div className="employee-table-scroll">
@@ -398,66 +548,67 @@ function Employees() {
               </thead>
 
               <tbody>
-                {filteredEmployees.map((employee) => (
-                  <tr key={employee.id}>
-                    <td>
-                      <div className="employee-identity">
-                        <span className="employee-avatar">
-                          {(employee.full_name || "?")
-                            .trim()
-                            .charAt(0)
-                            .toUpperCase()}
-                        </span>
-                        <div>
-                          <strong>{employee.full_name}</strong>
-                          <span>EMP-{String(employee.id).padStart(3, "0")}</span>
-                          <small>{employee.designation}</small>
-                        </div>
-                      </div>
-                    </td>
+                {employees.map((employee) => {
+                  const isActive =
+                    String(employee.status || "").toUpperCase() === "ACTIVE";
 
-                    <td>{employee.department}</td>
-                    <td>{formatDate(employee.joining_date)}</td>
-                    <td>
-                      {Number(employee.salary || 0).toLocaleString("en-IN", {
-                        style: "currency",
-                        currency: "INR",
-                        maximumFractionDigits: 2,
-                      })}
-                    </td>
-                    <td>
-                      <span
-                        className={`employee-status ${
-                          employee.status === "ACTIVE"
-                            ? "employee-status-active"
-                            : "employee-status-inactive"
-                        }`}
-                      >
-                        <span />
-                        {employee.status}
-                      </span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="employee-edit-button"
-                        onClick={() => openEditForm(employee)}
-                        aria-label={`Edit ${employee.full_name}`}
-                      >
-                        ✎ Edit
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                  return (
+                    <tr key={employee.id}>
+                      <td>
+                        <div className="employee-identity">
+                          <span className="employee-avatar">
+                            {(employee.full_name || "?")
+                              .trim()
+                              .charAt(0)
+                              .toUpperCase()}
+                          </span>
+                          <div>
+                            <strong>{employee.full_name}</strong>
+                            <span>
+                              EMP-{String(employee.id).padStart(3, "0")}
+                            </span>
+                            <small>{employee.designation}</small>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td>{employee.department}</td>
+                      <td>{formatDate(employee.joining_date)}</td>
+                      <td>{formatCurrency(employee.salary)}</td>
+
+                      <td>
+                        <span
+                          className={`employee-status ${
+                            isActive
+                              ? "employee-status-active"
+                              : "employee-status-inactive"
+                          }`}
+                        >
+                          <span />
+                          {employee.status}
+                        </span>
+                      </td>
+
+                      <td>
+                        <button
+                          type="button"
+                          className="employee-edit-button"
+                          onClick={() => openEditForm(employee)}
+                          aria-label={`Edit ${employee.full_name}`}
+                        >
+                          ✎ Edit
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
         <div className="employee-table-footer">
-          <span>
-            Showing {filteredEmployees.length} of {employees.length} employees
-          </span>
+          <span>Showing {employees.length} employee records</span>
           <span>WorkSphere HRMS</span>
         </div>
       </section>
@@ -483,9 +634,7 @@ function Employees() {
                 <h2 id="employee-form-title">
                   {editingEmployee ? "Edit Employee" : "Add Employee"}
                 </h2>
-                <p>
-                  Enter the employee information in the fields below.
-                </p>
+                <p>Enter the employee information below.</p>
               </div>
 
               <button
@@ -509,7 +658,8 @@ function Employees() {
               {!editingEmployee && (
                 <div className="employee-form-field">
                   <label htmlFor="user_id">
-                    Linked User ID <span className="employee-optional">(optional)</span>
+                    Linked User ID{" "}
+                    <span className="employee-optional">(optional)</span>
                   </label>
                   <input
                     id="user_id"
@@ -522,7 +672,8 @@ function Employees() {
                     placeholder="Link an existing user account"
                   />
                   <small>
-                    Leave blank if this employee does not need to be linked to a user yet.
+                    Leave blank if the employee does not have a linked account
+                    yet.
                   </small>
                 </div>
               )}
@@ -626,6 +777,7 @@ function Employees() {
                 >
                   Cancel
                 </button>
+
                 <button
                   type="submit"
                   className="employee-primary-button"

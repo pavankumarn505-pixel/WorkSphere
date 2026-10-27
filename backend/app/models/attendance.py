@@ -1,5 +1,5 @@
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from typing import Optional
 
 from sqlalchemy import (
@@ -18,7 +18,7 @@ from app.database import Base
 class Attendance(Base):
     __tablename__ = "attendance"
 
-    # Only one attendance record per employee per date.
+    # Prevent duplicate attendance records for one employee and date.
     __table_args__ = (
         UniqueConstraint(
             "employee_id",
@@ -40,33 +40,34 @@ class Attendance(Base):
     check_out = Column(DateTime, nullable=True)
     date = Column(Date, nullable=False, index=True)
 
-    # PRESENT, ABSENT, or HALF_DAY.
+    # Allowed values: PRESENT, ABSENT, HALF_DAY.
     status = Column(
         String(20),
         nullable=False,
         default="PRESENT",
     )
 
-    # Module 10: Official start time and grace period.
+    # Fallback policy for records without shift-specific calculation.
     OFFICIAL_START_TIME = time(9, 30)
     GRACE_PERIOD_MINUTES = 10
 
     @property
     def late_by_minutes(self) -> int:
-        """Calculate minutes late beyond the 9:40 AM cutoff."""
+        """
+        Calculate lateness using the default 9:30 AM policy.
 
+        Shift-specific lateness must be calculated in the
+        attendance route using the assigned shift.
+        """
         if self.check_in is None:
             return 0
 
-        cutoff_time = time(
-            self.OFFICIAL_START_TIME.hour,
-            self.OFFICIAL_START_TIME.minute
-            + self.GRACE_PERIOD_MINUTES,
-        )
-
-        cutoff_datetime = datetime.combine(
-            self.date,
-            cutoff_time,
+        cutoff_datetime = (
+            datetime.combine(
+                self.date,
+                self.OFFICIAL_START_TIME,
+            )
+            + timedelta(minutes=self.GRACE_PERIOD_MINUTES)
         )
 
         difference_seconds = (
@@ -76,24 +77,26 @@ class Attendance(Base):
         if difference_seconds <= 0:
             return 0
 
-        # Round up partial minutes.
+        # Round up any partial minute.
         return int((difference_seconds + 59) // 60)
 
     @property
     def is_late(self) -> bool:
-        """Return True if check-in is after the grace period."""
-
+        """Check lateness using the default policy."""
         return self.late_by_minutes > 0
 
     @property
     def working_hours(self) -> Optional[float]:
-        """Calculate working hours after check-out."""
-
+        """Calculate hours worked, including overnight shifts."""
         if self.check_in is None or self.check_out is None:
             return None
 
         seconds = (
             self.check_out - self.check_in
         ).total_seconds()
+
+        # Handle a checkout time that falls on the following day.
+        if seconds < 0:
+            seconds += 24 * 60 * 60
 
         return round(seconds / 3600, 2)

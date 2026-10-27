@@ -1,7 +1,14 @@
-
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import api from "../api";
 import "./Attendance.css";
+
+function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 
 function formatTime(value) {
   if (!value) return "--";
@@ -38,7 +45,9 @@ function formatDate(value) {
 }
 
 function formatHours(value) {
-  if (value === null || value === undefined) return "--";
+  if (value === null || value === undefined || value === "") {
+    return "--";
+  }
 
   const hours = Number(value);
 
@@ -55,6 +64,16 @@ function getLateLabel(item) {
   return "On Time";
 }
 
+function getEarlyCheckoutLabel(item) {
+  if (!item.check_out) return "—";
+
+  if (item.is_early_checkout) {
+    return `Early by ${item.early_by_minutes ?? 0} min`;
+  }
+
+  return "On Time";
+}
+
 function Attendance() {
   const [attendance, setAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -63,23 +82,30 @@ function Attendance() {
   const [message, setMessage] = useState("");
 
   const loadAttendance = useCallback(async (showLoading = true) => {
-    if (showLoading) setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
 
     setError("");
 
     try {
       const response = await api.get("/attendance/me");
 
-      setAttendance(
-        Array.isArray(response.data) ? response.data : []
-      );
+      if (!Array.isArray(response.data)) {
+        throw new Error("Unexpected attendance response.");
+      }
+
+      setAttendance(response.data);
     } catch (err) {
       setError(
         err.response?.data?.detail ||
+          err.message ||
           "Unable to load attendance history. Please try again."
       );
     } finally {
-      if (showLoading) setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -87,20 +113,29 @@ function Attendance() {
     loadAttendance();
   }, [loadAttendance]);
 
-  const now = new Date();
+  const today = getLocalDateString();
 
-  const today =
-    `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-
-  const todayRecord = attendance.find(
-    (item) => item.date === today
+  // Find today's attendance record.
+  const todayRecord = useMemo(
+    () => attendance.find((item) => item.date === today),
+    [attendance, today]
   );
 
-  const canCheckIn = !todayRecord;
+  // A record with check-in but no check-out is still open.
+  const openAttendanceRecord = useMemo(
+    () =>
+      attendance.find(
+        (item) => item.check_in && !item.check_out
+      ),
+    [attendance]
+  );
 
-  const canCheckOut =
-    Boolean(todayRecord?.check_in) &&
-    !todayRecord?.check_out;
+  const canCheckIn =
+    !todayRecord && !openAttendanceRecord;
+
+  const canCheckOut = Boolean(openAttendanceRecord);
+
+  const now = new Date();
 
   async function handleAttendance(action) {
     if (submitting) return;
@@ -110,19 +145,23 @@ function Attendance() {
     setMessage("");
 
     try {
-      await api.post(`/attendance/${action}`);
+      const response = await api.post(`/attendance/${action}`);
 
       setMessage(
-        action === "check-in"
-          ? "Check-in successful!"
-          : "Check-out successful!"
+        response.data?.message ||
+          (action === "check-in"
+            ? "Check-in successful!"
+            : "Check-out successful!")
       );
 
       await loadAttendance(false);
     } catch (err) {
+      const detail = err.response?.data?.detail;
+
       setError(
-        err.response?.data?.detail ||
-          "Attendance action failed. Please try again."
+        typeof detail === "string"
+          ? detail
+          : "Attendance action failed. Please try again."
       );
     } finally {
       setSubmitting(false);
@@ -135,7 +174,10 @@ function Attendance() {
         <div>
           <p className="attendance-eyebrow">WORKSPHERE HRMS</p>
           <h1>Attendance Management</h1>
-          <p>Track your daily attendance and working hours.</p>
+          <p>
+            Track your daily attendance, working hours, and shift
+            punctuality.
+          </p>
         </div>
 
         <div className="attendance-date">
@@ -154,10 +196,11 @@ function Attendance() {
       {error && (
         <div className="attendance-error" role="alert">
           <span>{error}</span>
+
           <button
             type="button"
             onClick={() => loadAttendance()}
-            disabled={loading}
+            disabled={loading || submitting}
           >
             Retry
           </button>
@@ -177,39 +220,55 @@ function Attendance() {
             {loading
               ? "Loading..."
               : todayRecord?.status?.replaceAll("_", " ") ||
-                "Not checked in"}
+                (openAttendanceRecord
+                  ? "Shift in progress"
+                  : "Not checked in")}
           </h2>
         </article>
 
         <article className="attendance-card">
           <span>Check-in Time</span>
-          <h2>{formatTime(todayRecord?.check_in)}</h2>
+          <h2>{formatTime(openAttendanceRecord?.check_in || todayRecord?.check_in)}</h2>
         </article>
 
         <article className="attendance-card">
           <span>Check-out Time</span>
-          <h2>{formatTime(todayRecord?.check_out)}</h2>
+          <h2>{formatTime(openAttendanceRecord?.check_out || todayRecord?.check_out)}</h2>
         </article>
 
         <article className="attendance-card">
           <span>Working Hours</span>
-          <h2>{formatHours(todayRecord?.working_hours)}</h2>
+          <h2>
+            {formatHours(
+              openAttendanceRecord?.working_hours ??
+                todayRecord?.working_hours
+            )}
+          </h2>
         </article>
 
         <article className="attendance-card">
           <span>Late Entry</span>
           <h2
             className={
-              todayRecord?.is_late
+              openAttendanceRecord?.is_late || todayRecord?.is_late
                 ? "attendance-late-text"
                 : "attendance-on-time-text"
             }
           >
             {loading
               ? "Loading..."
-              : todayRecord
-                ? getLateLabel(todayRecord)
-                : "Not checked in"}
+              : getLateLabel(openAttendanceRecord || todayRecord || {})}
+          </h2>
+        </article>
+
+        <article className="attendance-card">
+          <span>Early Checkout</span>
+          <h2>
+            {loading
+              ? "Loading..."
+              : getEarlyCheckoutLabel(
+                  openAttendanceRecord || todayRecord || {}
+                )}
           </h2>
         </article>
       </section>
@@ -251,8 +310,8 @@ function Attendance() {
           <div>
             <h2>Attendance History</h2>
             <p>
-              Review your check-in, check-out, working hours, and
-              late-entry status.
+              Review check-in, check-out, working hours, and
+              punctuality records.
             </p>
           </div>
 
@@ -285,6 +344,7 @@ function Attendance() {
                   <th>Working Hours</th>
                   <th>Status</th>
                   <th>Late Entry</th>
+                  <th>Early Checkout</th>
                 </tr>
               </thead>
 
@@ -295,9 +355,12 @@ function Attendance() {
                     <td>{formatTime(item.check_in)}</td>
                     <td>{formatTime(item.check_out)}</td>
                     <td>{formatHours(item.working_hours)}</td>
+
                     <td>
                       <span
-                        className={`attendance-status ${(item.status || "unknown").toLowerCase()}`}
+                        className={`attendance-status ${
+                          (item.status || "unknown").toLowerCase()
+                        }`}
                       >
                         {(item.status || "UNKNOWN").replaceAll(
                           "_",
@@ -305,6 +368,7 @@ function Attendance() {
                         )}
                       </span>
                     </td>
+
                     <td>
                       <span
                         className={`attendance-late-badge ${
@@ -316,6 +380,20 @@ function Attendance() {
                         }`}
                       >
                         {getLateLabel(item)}
+                      </span>
+                    </td>
+
+                    <td>
+                      <span
+                        className={`attendance-late-badge ${
+                          !item.check_out
+                            ? "unknown"
+                            : item.is_early_checkout
+                              ? "late"
+                              : "on-time"
+                        }`}
+                      >
+                        {getEarlyCheckoutLabel(item)}
                       </span>
                     </td>
                   </tr>

@@ -1,3 +1,4 @@
+
 import {
   BrowserRouter,
   Routes,
@@ -6,6 +7,7 @@ import {
   NavLink,
   useNavigate,
 } from "react-router-dom";
+import { useCallback, useEffect, useState } from "react";
 
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
@@ -15,28 +17,41 @@ import LeaveApplication from "./pages/LeaveApplication";
 import LeaveStatus from "./pages/LeaveStatus";
 import LeaveApprovals from "./pages/LeaveApprovals";
 import LeaveBalance from "./pages/LeaveBalance";
+import LeaveCalendar from "./pages/LeaveCalendar";
 import Profile from "./pages/Profile";
 import Employees from "./pages/Employees";
 import Payroll from "./pages/Payroll";
 import AdminUsers from "./pages/AdminUsers";
+import Shifts from "./pages/Shifts";
+import Performance from "./Performance";
+import Analytics from "./Analytics";
+import Notifications from "./components/Notifications";
 
 import "./App.css";
 
+const API_URL = "http://127.0.0.1:8000";
+
+// Get the login token from localStorage or sessionStorage.
 function getToken() {
   return (
+    localStorage.getItem("access_token") ||
     sessionStorage.getItem("access_token") ||
-    localStorage.getItem("access_token")
+    localStorage.getItem("token") ||
+    sessionStorage.getItem("token") ||
+    ""
   );
 }
 
+// Get the current user's role.
 function getRole() {
   return (
-    sessionStorage.getItem("user_role") ||
     localStorage.getItem("user_role") ||
+    sessionStorage.getItem("user_role") ||
     ""
   ).toUpperCase();
 }
 
+// Get the correct dashboard based on the user's role.
 function getDashboardPath() {
   const role = getRole();
 
@@ -47,6 +62,7 @@ function getDashboardPath() {
   return "/";
 }
 
+// Protect routes from unauthorized access.
 function ProtectedRoute({ children, allowedRoles }) {
   const token = getToken();
   const role = getRole();
@@ -62,23 +78,78 @@ function ProtectedRoute({ children, allowedRoles }) {
   return children;
 }
 
+// Shared navigation layout.
 function AppLayout({ children }) {
   const navigate = useNavigate();
   const role = getRole();
+  const isHRorAdmin = ["HR", "ADMIN"].includes(role);
 
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Fetch unread notification count from FastAPI.
+  const fetchUnreadCount = useCallback(async () => {
+    const token = getToken();
+
+    if (!token) {
+      setUnreadCount(0);
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `${API_URL}/notifications/unread-count`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        return;
+      }
+
+      const data = await response.json();
+
+      const count =
+        typeof data === "number"
+          ? data
+          : data.unread_count ?? data.count ?? data.unread ?? 0;
+
+      setUnreadCount(Math.max(0, Number(count) || 0));
+    } catch (error) {
+      console.error(
+        "Unable to fetch unread notification count:",
+        error
+      );
+    }
+  }, []);
+
+  // Load the count initially and refresh every 30 seconds.
+  useEffect(() => {
+    fetchUnreadCount();
+
+    const intervalId = setInterval(fetchUnreadCount, 30000);
+
+    return () => clearInterval(intervalId);
+  }, [fetchUnreadCount]);
+
+  // Clear authentication data during logout.
   function handleLogout() {
     const keys = [
       "access_token",
+      "token",
       "user_role",
       "user_id",
       "user_email",
     ];
 
     keys.forEach((key) => {
-      sessionStorage.removeItem(key);
       localStorage.removeItem(key);
+      sessionStorage.removeItem(key);
     });
 
+    setUnreadCount(0);
     navigate("/", { replace: true });
   }
 
@@ -103,6 +174,26 @@ function AppLayout({ children }) {
             Dashboard
           </NavLink>
 
+          {/* Module 19: Notifications with unread badge */}
+          <NavLink
+            to="/notifications"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            <span>Notifications</span>
+
+            {unreadCount > 0 && (
+              <span
+                className="notification-badge"
+                aria-label={`${unreadCount} unread notifications`}
+              >
+                {unreadCount > 99 ? "99+" : unreadCount}
+              </span>
+            )}
+          </NavLink>
+
+          {/* Admin navigation */}
           {role === "ADMIN" && (
             <NavLink
               to="/admin/users"
@@ -114,15 +205,63 @@ function AppLayout({ children }) {
             </NavLink>
           )}
 
-          {["HR", "ADMIN"].includes(role) && (
-            <NavLink
-              to="/employees"
-              className={({ isActive }) =>
-                isActive ? "active" : ""
-              }
-            >
-              Employees
-            </NavLink>
+          {/* HR and Admin navigation */}
+          {isHRorAdmin && (
+            <>
+              <NavLink
+                to="/employees"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Employees
+              </NavLink>
+
+              <NavLink
+                to="/shifts"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Shift Management
+              </NavLink>
+
+              <NavLink
+                to="/performance"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Performance Management
+              </NavLink>
+
+              <NavLink
+                to="/analytics"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Analytics &amp; Reports
+              </NavLink>
+
+              <NavLink
+                to="/attendance/analytics"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Attendance Analytics
+              </NavLink>
+
+              <NavLink
+                to="/leaves/approvals"
+                className={({ isActive }) =>
+                  isActive ? "active" : ""
+                }
+              >
+                Leave Approvals
+              </NavLink>
+            </>
           )}
 
           <NavLink
@@ -142,17 +281,6 @@ function AppLayout({ children }) {
           >
             Attendance
           </NavLink>
-
-          {["HR", "ADMIN"].includes(role) && (
-            <NavLink
-              to="/attendance/analytics"
-              className={({ isActive }) =>
-                isActive ? "active" : ""
-              }
-            >
-              Attendance Analytics
-            </NavLink>
-          )}
 
           <NavLink
             to="/leaves/balance"
@@ -181,16 +309,14 @@ function AppLayout({ children }) {
             Leave Status
           </NavLink>
 
-          {["HR", "ADMIN"].includes(role) && (
-            <NavLink
-              to="/leaves/approvals"
-              className={({ isActive }) =>
-                isActive ? "active" : ""
-              }
-            >
-              Leave Approvals
-            </NavLink>
-          )}
+          <NavLink
+            to="/leaves/calendar"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            Leave Calendar &amp; Team View
+          </NavLink>
 
           <NavLink
             to="/payroll"
@@ -216,15 +342,8 @@ function AppLayout({ children }) {
   );
 }
 
+// Reusable dashboard layout.
 function DashboardRoute() {
-  return (
-    <AppLayout>
-      <Dashboard />
-    </AppLayout>
-  );
-}
-
-function EmployeeHome() {
   return (
     <AppLayout>
       <Dashboard />
@@ -236,24 +355,15 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Login */}
         <Route path="/" element={<Login />} />
 
+        {/* Role-specific dashboards */}
         <Route
           path="/admin"
           element={
             <ProtectedRoute allowedRoles={["ADMIN"]}>
               <DashboardRoute />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/admin/users"
-          element={
-            <ProtectedRoute allowedRoles={["ADMIN"]}>
-              <AppLayout>
-                <AdminUsers />
-              </AppLayout>
             </ProtectedRoute>
           }
         />
@@ -271,11 +381,24 @@ function App() {
           path="/employee"
           element={
             <ProtectedRoute allowedRoles={["EMPLOYEE"]}>
-              <EmployeeHome />
+              <DashboardRoute />
             </ProtectedRoute>
           }
         />
 
+        {/* Admin user management */}
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AppLayout>
+                <AdminUsers />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Employee management */}
         <Route
           path="/employees"
           element={
@@ -287,6 +410,55 @@ function App() {
           }
         />
 
+        {/* Module 14: Shift Management */}
+        <Route
+          path="/shifts"
+          element={
+            <ProtectedRoute allowedRoles={["HR", "ADMIN"]}>
+              <AppLayout>
+                <Shifts />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 17: Performance Management */}
+        <Route
+          path="/performance"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Performance />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 18: Analytics and Reports */}
+        <Route
+          path="/analytics"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Analytics />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 19: Notification Management */}
+        <Route
+          path="/notifications"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Notifications />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Profile */}
         <Route
           path="/profile"
           element={
@@ -298,6 +470,7 @@ function App() {
           }
         />
 
+        {/* Attendance */}
         <Route
           path="/attendance"
           element={
@@ -309,6 +482,7 @@ function App() {
           }
         />
 
+        {/* Attendance Analytics */}
         <Route
           path="/attendance/analytics"
           element={
@@ -320,6 +494,7 @@ function App() {
           }
         />
 
+        {/* Leave Balance */}
         <Route
           path="/leaves/balance"
           element={
@@ -331,6 +506,7 @@ function App() {
           }
         />
 
+        {/* Apply for Leave */}
         <Route
           path="/leaves/apply"
           element={
@@ -342,6 +518,7 @@ function App() {
           }
         />
 
+        {/* Leave Status */}
         <Route
           path="/leaves/status"
           element={
@@ -353,6 +530,7 @@ function App() {
           }
         />
 
+        {/* Leave Approvals */}
         <Route
           path="/leaves/approvals"
           element={
@@ -364,7 +542,19 @@ function App() {
           }
         />
 
-        {/* Payroll: accessible to all logged-in roles */}
+        {/* Module 15: Leave Calendar */}
+        <Route
+          path="/leaves/calendar"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <LeaveCalendar />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Payroll */}
         <Route
           path="/payroll"
           element={
@@ -376,6 +566,7 @@ function App() {
           }
         />
 
+        {/* Unknown routes */}
         <Route
           path="*"
           element={
