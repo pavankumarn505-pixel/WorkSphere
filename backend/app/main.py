@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -16,6 +17,8 @@ from app.models import (
     Payroll,
     LeavePolicy,
     LeaveBalance,
+    Onboarding,
+    Feedback,  # Module 26: Employee Feedback
 )
 
 # Module 14: Shift Management
@@ -29,6 +32,15 @@ from app.models.performance import PerformanceReview
 
 # Module 19: Notification Management
 from app.models.notification import Notification
+
+# Module 22: Resignation & Exit Management
+from app.models.resignation import Resignation
+
+# Module 23: Internal Announcements
+from app.models.announcement import Announcement
+
+# Module 24: Task Assignment & Tracking
+from app.models.task import Task
 
 
 # =========================================================
@@ -58,6 +70,21 @@ from app.routes.analytics import router as analytics_router
 
 # Module 19: Notification Management
 from app.routes.notifications import router as notifications_router
+
+# Module 21: Employee Onboarding
+from app.routes.onboarding import router as onboarding_router
+
+# Module 22: Resignation & Exit Management
+from app.routes.resignations import router as resignations_router
+
+# Module 23: Internal Announcements
+from app.routes.announcements import router as announcements_router
+
+# Module 24: Task Assignment & Tracking
+from app.routes.tasks import router as tasks_router
+
+# Module 26: Employee Feedback
+from app.routes.feedback import router as feedback_router
 
 
 # =========================================================
@@ -133,6 +160,21 @@ app.include_router(analytics_router)
 
 # Module 19: Notification Management
 app.include_router(notifications_router)
+
+# Module 21: Employee Onboarding
+app.include_router(onboarding_router)
+
+# Module 22: Resignation & Exit Management
+app.include_router(resignations_router)
+
+# Module 23: Internal Announcements
+app.include_router(announcements_router)
+
+# Module 24: Task Assignment & Tracking
+app.include_router(tasks_router)
+
+# Module 26: Employee Feedback
+app.include_router(feedback_router)
 
 
 # =========================================================

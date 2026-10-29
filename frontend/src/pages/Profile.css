@@ -273,3 +273,99 @@
     width: 100%;
   }
 }
+
+
+
+/* Change Password section */
+
+.password-card {
+  margin-top: 24px;
+}
+
+.password-card .profile-card-heading {
+  align-items: center;
+}
+
+.password-card .profile-subtitle {
+  margin-top: 6px;
+}
+
+.security-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: 12px;
+  background: #eef4ff;
+  font-size: 21px;
+}
+
+.password-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.password-field label {
+  font-weight: 600;
+}
+
+.password-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  padding-right: 12px;
+}
+
+.password-input-wrapper:focus-within {
+  border-color: #2563eb;
+  outline: 2px solid rgba(37, 99, 235, 0.12);
+}
+
+.password-input-wrapper input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  padding: 12px;
+  font: inherit;
+  color: #111827;
+}
+
+.password-toggle {
+  border: none;
+  background: transparent;
+  color: #2563eb;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 6px;
+}
+
+.password-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+@media (max-width: 600px) {
+  .password-card {
+    margin-top: 18px;
+  }
+
+  .password-card .profile-card-heading {
+    gap: 12px;
+  }
+
+  .password-card .profile-actions {
+    flex-wrap: wrap;
+  }
+}

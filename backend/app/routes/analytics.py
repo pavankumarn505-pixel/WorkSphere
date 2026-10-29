@@ -1,8 +1,24 @@
-from datetime import date
+
+from datetime import date, datetime, time, timedelta
 from typing import Optional
+import csv
+import io
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.units import inch
+from reportlab.platypus import (
+    SimpleDocTemplate,
+    Paragraph,
+    Spacer,
+    Table,
+    TableStyle,
+)
 
 from app.database import get_db
 from app.models.attendance import Attendance
@@ -18,6 +34,10 @@ router = APIRouter(
     tags=["Analytics & Reports"],
 )
 
+
+# =========================================================
+# Helper functions
+# =========================================================
 
 def is_hr_or_admin(user: User) -> bool:
     """Check whether the user can view organization-wide reports."""
@@ -48,38 +68,20 @@ def get_date_range(
         )
 
 
-@router.get("/summary")
-def get_analytics_summary(
-    start_date: Optional[date] = Query(
-        default=None,
-        description="Start date in YYYY-MM-DD format",
-    ),
-    end_date: Optional[date] = Query(
-        default=None,
-        description="End date in YYYY-MM-DD format",
-    ),
-    department: Optional[str] = Query(
-        default=None,
-        description="Filter by department (HR/Admin only)",
-    ),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+def build_analytics_summary(
+    start_date: Optional[date],
+    end_date: Optional[date],
+    department: Optional[str],
+    db: Session,
+    current_user: User,
 ):
-    """
-    Return employee, attendance, leave, and performance statistics.
-
-    HR/Admin:
-        Organization-wide reports, optionally filtered by department.
-
-    Employee:
-        Reports restricted to their own employee record.
-    """
+    """Build the report shared by JSON, CSV, and PDF endpoints."""
 
     get_date_range(start_date, end_date)
 
-    # Employees cannot request organization-wide or other
-    # department reports.
-    if not is_hr_or_admin(current_user):
+    manager_access = is_hr_or_admin(current_user)
+
+    if not manager_access:
         if department:
             raise HTTPException(
                 status_code=403,
@@ -92,6 +94,11 @@ def get_analytics_summary(
             return {
                 "scope": "employee",
                 "employee": None,
+                "filters": {
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "department": department,
+                },
                 "employee_count": 0,
                 "attendance": {
                     "present": 0,
@@ -112,7 +119,6 @@ def get_analytics_summary(
                 },
             }
 
-        employee_ids = [employee.id]
         employee_query = db.query(Employee).filter(
             Employee.id == employee.id
         )
@@ -125,11 +131,9 @@ def get_analytics_summary(
                 Employee.department.ilike(department.strip())
             )
 
-        employee_ids = [
-            item.id for item in employee_query.all()
-        ]
+    employees = employee_query.all()
+    employee_ids = [employee.id for employee in employees]
 
-    # Restrict every report to the selected employee IDs.
     attendance_query = db.query(Attendance).filter(
         Attendance.employee_id.in_(employee_ids)
     )
@@ -142,7 +146,7 @@ def get_analytics_summary(
         PerformanceReview.employee_id.in_(employee_ids)
     )
 
-    # Apply the date range to attendance records.
+    # Attendance date filters.
     if start_date:
         attendance_query = attendance_query.filter(
             Attendance.date >= start_date
@@ -153,7 +157,7 @@ def get_analytics_summary(
             Attendance.date <= end_date
         )
 
-    # Include leave requests that overlap the selected period.
+    # Leave requests overlapping the selected reporting period.
     if start_date:
         leave_query = leave_query.filter(
             Leave.end_date >= start_date
@@ -164,27 +168,21 @@ def get_analytics_summary(
             Leave.start_date <= end_date
         )
 
-    # Filter performance reviews by their creation date.
+    # Performance review creation date filters.
     if start_date:
         performance_query = performance_query.filter(
-            PerformanceReview.created_at >= start_date
+            PerformanceReview.created_at >= datetime.combine(
+                start_date, time.min
+            )
         )
 
     if end_date:
         performance_query = performance_query.filter(
-            PerformanceReview.created_at < (
-                __import__("datetime").datetime.combine(
-                    end_date,
-                    __import__("datetime").time.min,
-                )
-                .replace(tzinfo=None)
-                .__add__(
-                    __import__("datetime").timedelta(days=1)
-                )
+            PerformanceReview.created_at < datetime.combine(
+                end_date + timedelta(days=1), time.min
             )
         )
 
-    # Load matching records.
     attendance_records = attendance_query.all()
     leave_records = leave_query.all()
     performance_records = performance_query.all()
@@ -192,17 +190,17 @@ def get_analytics_summary(
     # Attendance statistics.
     present_count = sum(
         1 for item in attendance_records
-        if item.status.upper() == "PRESENT"
+        if (item.status or "").upper() == "PRESENT"
     )
 
     absent_count = sum(
         1 for item in attendance_records
-        if item.status.upper() == "ABSENT"
+        if (item.status or "").upper() == "ABSENT"
     )
 
     half_day_count = sum(
         1 for item in attendance_records
-        if item.status.upper() == "HALF_DAY"
+        if (item.status or "").upper() == "HALF_DAY"
     )
 
     working_hours = [
@@ -220,22 +218,24 @@ def get_analytics_summary(
     # Leave statistics.
     pending_leaves = sum(
         1 for item in leave_records
-        if item.status.upper() == "PENDING"
+        if (item.status or "").upper() == "PENDING"
     )
 
     approved_leaves = sum(
         1 for item in leave_records
-        if item.status.upper() == "APPROVED"
+        if (item.status or "").upper() == "APPROVED"
     )
 
     rejected_leaves = sum(
         1 for item in leave_records
-        if item.status.upper() == "REJECTED"
+        if (item.status or "").upper() == "REJECTED"
     )
 
     # Performance statistics.
     ratings = [
-        item.rating for item in performance_records
+        item.rating
+        for item in performance_records
+        if item.rating is not None
     ]
 
     average_rating = (
@@ -244,18 +244,21 @@ def get_analytics_summary(
         else None
     )
 
-    # Return department details for HR/Admin.
-    if is_hr_or_admin(current_user):
-        employee_count = len(employee_ids)
+    if manager_access:
         scope = "organization"
         employee_details = None
     else:
-        employee_count = len(employee_ids)
         scope = "employee"
-        employee_details = {
-            "id": employee_ids[0],
-            "full_name": employee_query.first().full_name,
-        }
+        linked_employee = employees[0] if employees else None
+
+        employee_details = (
+            {
+                "id": linked_employee.id,
+                "full_name": linked_employee.full_name,
+            }
+            if linked_employee
+            else None
+        )
 
     return {
         "scope": scope,
@@ -265,7 +268,7 @@ def get_analytics_summary(
             "end_date": end_date,
             "department": department,
         },
-        "employee_count": employee_count,
+        "employee_count": len(employee_ids),
         "attendance": {
             "present": present_count,
             "absent": absent_count,
@@ -286,6 +289,42 @@ def get_analytics_summary(
     }
 
 
+# =========================================================
+# Existing endpoint: Analytics summary
+# =========================================================
+
+@router.get("/summary")
+def get_analytics_summary(
+    start_date: Optional[date] = Query(
+        default=None,
+        description="Start date in YYYY-MM-DD format",
+    ),
+    end_date: Optional[date] = Query(
+        default=None,
+        description="End date in YYYY-MM-DD format",
+    ),
+    department: Optional[str] = Query(
+        default=None,
+        description="Department filter for HR/Admin",
+    ),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return role-restricted employee and organization analytics."""
+
+    return build_analytics_summary(
+        start_date=start_date,
+        end_date=end_date,
+        department=department,
+        db=db,
+        current_user=current_user,
+    )
+
+
+# =========================================================
+# Existing endpoint: Department report
+# =========================================================
+
 @router.get("/departments")
 def get_department_report(
     db: Session = Depends(get_db),
@@ -300,16 +339,13 @@ def get_department_report(
         )
 
     employees = db.query(Employee).all()
-
     department_counts = {}
 
     for employee in employees:
         department_name = employee.department or "Unassigned"
-
-        if department_name not in department_counts:
-            department_counts[department_name] = 0
-
-        department_counts[department_name] += 1
+        department_counts[department_name] = (
+            department_counts.get(department_name, 0) + 1
+        )
 
     return {
         "total_employees": len(employees),
@@ -321,3 +357,176 @@ def get_department_report(
             for name, count in sorted(department_counts.items())
         ],
     }
+
+
+# =========================================================
+# Module 25: CSV export
+# =========================================================
+
+@router.get("/export/csv")
+def export_analytics_csv(
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    department: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Download the permitted analytics summary as a CSV file."""
+
+    report = build_analytics_summary(
+        start_date=start_date,
+        end_date=end_date,
+        department=department,
+        db=db,
+        current_user=current_user,
+    )
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(["WorkSphere HRMS - Analytics Report"])
+    writer.writerow([
+        "Generated At",
+        datetime.now().isoformat(timespec="seconds"),
+    ])
+    writer.writerow(["Report Scope", report.get("scope", "")])
+    writer.writerow(["Employee Count", report.get("employee_count", 0)])
+
+    employee_details = report.get("employee")
+    if employee_details:
+        writer.writerow(["Employee ID", employee_details["id"]])
+        writer.writerow(["Employee Name", employee_details["full_name"]])
+
+    writer.writerow([])
+    writer.writerow(["Section", "Metric", "Value"])
+
+    for section in ("attendance", "leaves", "performance", "filters"):
+        for key, value in report.get(section, {}).items():
+            writer.writerow([
+                section.title(),
+                key.replace("_", " ").title(),
+                "" if value is None else value,
+            ])
+
+    # BOM helps Excel recognize UTF-8.
+    csv_content = "\ufeff" + output.getvalue()
+    filename = f"worksphere_analytics_{date.today().isoformat()}.csv"
+
+    return StreamingResponse(
+        iter([csv_content]),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
+
+
+# =========================================================
+# Module 25: PDF export
+# =========================================================
+
+@router.get("/export/pdf")
+def export_analytics_pdf(
+    start_date: Optional[date] = Query(default=None),
+    end_date: Optional[date] = Query(default=None),
+    department: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Download the permitted analytics summary as a PDF file."""
+
+    report = build_analytics_summary(
+        start_date=start_date,
+        end_date=end_date,
+        department=department,
+        db=db,
+        current_user=current_user,
+    )
+
+    buffer = io.BytesIO()
+
+    document = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=40,
+        bottomMargin=40,
+    )
+
+    styles = getSampleStyleSheet()
+
+    content = [
+        Paragraph("WorkSphere HRMS", styles["Title"]),
+        Paragraph("Analytics and Reports", styles["Heading2"]),
+        Paragraph(
+            f"Generated: {datetime.now().strftime('%d-%m-%Y %H:%M')}",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.2 * inch),
+    ]
+
+    rows = [["Metric", "Value"]]
+    rows.append(["Report Scope", str(report.get("scope", ""))])
+    rows.append(["Employee Count", str(report.get("employee_count", 0))])
+
+    employee_details = report.get("employee")
+    if employee_details:
+        rows.append(["Employee ID", str(employee_details["id"])])
+        rows.append(["Employee Name", str(employee_details["full_name"])])
+
+    for section in ("attendance", "leaves", "performance", "filters"):
+        rows.append([section.title(), ""])
+
+        for key, value in report.get(section, {}).items():
+            display_value = "Not available" if value is None else str(value)
+
+            rows.append([
+                f"  {key.replace('_', ' ').title()}",
+                display_value,
+            ])
+
+    table = Table(
+        rows,
+        colWidths=[3.4 * inch, 2.5 * inch],
+        repeatRows=1,
+    )
+
+    table.setStyle(
+        TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#17365D")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+            ("LEADING", (0, 0), (-1, -1), 12),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.grey),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 7),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("BACKGROUND", (0, 1), (-1, -1), colors.whitesmoke),
+        ])
+    )
+
+    content.append(table)
+    content.append(Spacer(1, 0.2 * inch))
+    content.append(
+        Paragraph(
+            "Confidential - WorkSphere HRMS",
+            styles["Italic"],
+        )
+    )
+
+    document.build(content)
+    buffer.seek(0)
+
+    filename = f"worksphere_analytics_{date.today().isoformat()}.pdf"
+
+    return StreamingResponse(
+        buffer,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )

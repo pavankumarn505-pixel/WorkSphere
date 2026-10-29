@@ -1,3 +1,4 @@
+
 import { useCallback, useEffect, useState } from "react";
 import "./Analytics.css";
 
@@ -31,8 +32,10 @@ function Analytics() {
   const [endDate, setEndDate] = useState("");
   const [department, setDepartment] = useState("");
   const [loading, setLoading] = useState(false);
+  const [exporting, setExporting] = useState("");
   const [error, setError] = useState("");
   const [departmentError, setDepartmentError] = useState("");
+  const [exportError, setExportError] = useState("");
 
   const role = (
     sessionStorage.getItem("user_role") ||
@@ -41,6 +44,29 @@ function Analytics() {
   ).toUpperCase();
 
   const isHRorAdmin = ["HR", "ADMIN"].includes(role);
+
+  // Build query parameters shared by dashboard and export requests.
+  function getFilterParams() {
+    const params = new URLSearchParams();
+
+    if (startDate) params.set("start_date", startDate);
+    if (endDate) params.set("end_date", endDate);
+
+    if (department && isHRorAdmin) {
+      params.set("department", department.trim());
+    }
+
+    return params;
+  }
+
+  function validateFilters() {
+    if (startDate && endDate && startDate > endDate) {
+      setError("Start date cannot be later than end date.");
+      return false;
+    }
+
+    return true;
+  }
 
   const loadAnalytics = useCallback(async () => {
     const token = getToken();
@@ -85,9 +111,7 @@ function Analytics() {
 
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
-        throw new Error(
-          result.detail || "Unable to load analytics."
-        );
+        throw new Error(result.detail || "Unable to load analytics.");
       }
 
       const data = await response.json();
@@ -109,32 +133,107 @@ function Analytics() {
 
     const token = getToken();
 
+    if (!token) {
+      setDepartmentError("Please log in again to load departments.");
+      return;
+    }
+
     try {
-      const response = await fetch(
-        `${API_URL}/analytics/departments`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      const response = await fetch(`${API_URL}/analytics/departments`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        throw new Error("Session expired. Please log in again.");
+      }
 
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
-        throw new Error(
-          result.detail || "Unable to load departments."
-        );
+        throw new Error(result.detail || "Unable to load departments.");
       }
 
       const data = await response.json();
       setDepartments(data.departments || []);
       setDepartmentError("");
     } catch (err) {
-      setDepartmentError(
-        err.message || "Unable to load departments."
-      );
+      setDepartmentError(err.message || "Unable to load departments.");
     }
   }, [isHRorAdmin]);
+
+  // Download CSV or PDF from the authenticated backend.
+  async function downloadReport(format) {
+    if (!validateFilters()) return;
+
+    const token = getToken();
+
+    if (!token) {
+      setExportError("Your login session is missing. Please log in again.");
+      return;
+    }
+
+    setExporting(format);
+    setExportError("");
+    setError("");
+
+    try {
+      const params = getFilterParams();
+      const query = params.toString();
+      const endpoint = `${API_URL}/analytics/export/${format}${
+        query ? `?${query}` : ""
+      }`;
+
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 401) {
+        throw new Error("Session expired. Please log in again.");
+      }
+
+      if (!response.ok) {
+        let message = `Unable to export ${format.toUpperCase()} report.`;
+
+        try {
+          const result = await response.json();
+          message = result.detail || message;
+        } catch {
+          // The server may return a non-JSON error response.
+        }
+
+        throw new Error(message);
+      }
+
+      const blob = await response.blob();
+
+      if (blob.size === 0) {
+        throw new Error("The server returned an empty report.");
+      }
+
+      const fileUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      const extension = format === "pdf" ? "pdf" : "csv";
+      link.href = fileUrl;
+      link.download = `worksphere_analytics_${new Date()
+        .toISOString()
+        .slice(0, 10)}.${extension}`;
+
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+
+      window.URL.revokeObjectURL(fileUrl);
+    } catch (err) {
+      setExportError(err.message || "Unable to download report.");
+    } finally {
+      setExporting("");
+    }
+  }
 
   useEffect(() => {
     loadAnalytics();
@@ -148,6 +247,8 @@ function Analytics() {
     setStartDate("");
     setEndDate("");
     setDepartment("");
+    setError("");
+    setExportError("");
   }
 
   if (!summary && loading) {
@@ -182,9 +283,7 @@ function Analytics() {
     <div className="analytics-page">
       <header className="analytics-header">
         <div>
-          <p className="analytics-eyebrow">
-            WORKSPHERE HRMS
-          </p>
+          <p className="analytics-eyebrow">WORKSPHERE HRMS</p>
           <h1>Analytics &amp; Reports</h1>
           <p className="analytics-subtitle">
             Understand attendance, leave activity, and employee
@@ -199,7 +298,7 @@ function Analytics() {
             loadAnalytics();
             loadDepartments();
           }}
-          disabled={loading}
+          disabled={loading || exporting !== ""}
         >
           {loading ? "Refreshing..." : "Refresh Reports"}
         </button>
@@ -251,10 +350,7 @@ function Analytics() {
               >
                 <option value="">All Departments</option>
                 {departments.map((item) => (
-                  <option
-                    key={item.department}
-                    value={item.department}
-                  >
+                  <option key={item.department} value={item.department}>
                     {item.department}
                   </option>
                 ))}
@@ -274,6 +370,45 @@ function Analytics() {
 
         {departmentError && (
           <p className="analytics-warning">{departmentError}</p>
+        )}
+      </section>
+
+      {/* Module 25: CSV and PDF report downloads */}
+      <section className="analytics-export-panel">
+        <div>
+          <h2>Export Reports</h2>
+          <p>
+            Download analytics using the selected date and department filters.
+          </p>
+        </div>
+
+        <div className="analytics-export-actions">
+          <button
+            type="button"
+            className="analytics-export-button analytics-csv-button"
+            onClick={() => downloadReport("csv")}
+            disabled={exporting !== "" || loading}
+          >
+            {exporting === "csv" ? "Preparing CSV..." : "Download CSV"}
+          </button>
+
+          <button
+            type="button"
+            className="analytics-export-button analytics-pdf-button"
+            onClick={() => downloadReport("pdf")}
+            disabled={exporting !== "" || loading}
+          >
+            {exporting === "pdf" ? "Preparing PDF..." : "Download PDF"}
+          </button>
+        </div>
+
+        {exportError && (
+          <div className="analytics-error" role="alert">
+            <p>{exportError}</p>
+            <button type="button" onClick={() => setExportError("")}>
+              Dismiss
+            </button>
+          </div>
         )}
       </section>
 
@@ -302,9 +437,7 @@ function Analytics() {
             <div className="analytics-stat-grid">
               <StatCard
                 title={
-                  summary.scope === "employee"
-                    ? "My Employee ID"
-                    : "Employees"
+                  summary.scope === "employee" ? "My Employee ID" : "Employees"
                 }
                 value={
                   summary.scope === "employee"
@@ -355,19 +488,14 @@ function Analytics() {
               ) : (
                 <div className="analytics-bars">
                   {attendanceItems.map((item) => {
-                    const percentage =
-                      (item.value / attendanceTotal) * 100;
+                    const percentage = (item.value / attendanceTotal) * 100;
 
                     return (
-                      <div
-                        className="analytics-bar-item"
-                        key={item.label}
-                      >
+                      <div className="analytics-bar-item" key={item.label}>
                         <div className="analytics-bar-label">
                           <span>{item.label}</span>
                           <strong>
-                            {item.value} (
-                            {percentage.toFixed(1)}%)
+                            {item.value} ({percentage.toFixed(1)}%)
                           </strong>
                         </div>
 
@@ -410,10 +538,7 @@ function Analytics() {
 
               <div className="analytics-leave-list">
                 {leaveItems.map((item) => (
-                  <div
-                    className="analytics-leave-item"
-                    key={item.label}
-                  >
+                  <div className="analytics-leave-item" key={item.label}>
                     <div className="analytics-leave-label">
                       <span
                         className={`analytics-status-dot ${
@@ -491,9 +616,7 @@ function Analytics() {
               </div>
 
               {departmentError ? (
-                <div className="analytics-warning">
-                  {departmentError}
-                </div>
+                <div className="analytics-warning">{departmentError}</div>
               ) : departments.length === 0 ? (
                 <div className="analytics-empty">
                   No department data available.
@@ -527,9 +650,8 @@ function Analytics() {
               )}
 
               <p className="analytics-report-note">
-                Department totals show all employees. The selected
-                date range applies to attendance, leave, and
-                performance summaries.
+                Department totals show all employees. The selected date range
+                applies to attendance, leave, and performance summaries.
               </p>
             </section>
           )}

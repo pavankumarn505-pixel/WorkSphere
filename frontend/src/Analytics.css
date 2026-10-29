@@ -496,3 +496,81 @@
     font-size: 28px;
   }
 }
+
+
+
+
+/* Module 25: CSV and PDF export controls */
+
+.analytics-export-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin: 24px 0;
+  padding: 22px;
+  border: 1px solid #dce5f2;
+  border-radius: 14px;
+  background: #ffffff;
+}
+
+.analytics-export-panel h2 {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+
+.analytics-export-panel p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.analytics-export-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.analytics-export-button {
+  padding: 11px 18px;
+  border: 0;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s ease;
+}
+
+.analytics-export-button:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.analytics-export-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.analytics-csv-button {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.analytics-pdf-button {
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+@media (max-width: 600px) {
+  .analytics-export-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analytics-export-actions {
+    flex-direction: column;
+  }
+
+  .analytics-export-button {
+    width: 100%;
+  }
+}

@@ -9,8 +9,13 @@ from app.models.user import User
 from app.models.attendance import Attendance
 from app.models.performance import PerformanceReview
 from app.core.dependencies import get_current_user, require_roles
+from app.core.security import hash_password, verify_password
 
-from app.schemas import ProfileUpdate, UserResponse
+from app.schemas import (
+    ProfileUpdate,
+    UserResponse,
+    PasswordChange,
+)
 from app.schemas_employee import (
     EmployeeCreate,
     EmployeeUpdate,
@@ -26,7 +31,6 @@ router = APIRouter(
 
 
 # 1. CREATE EMPLOYEE
-# Only HR and ADMIN can create employee records.
 @router.post(
     "/",
     response_model=EmployeeResponse,
@@ -37,7 +41,6 @@ def create_employee(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("HR", "ADMIN")),
 ):
-    # Check whether the linked user exists.
     if data.user_id is not None:
         linked_user = (
             db.query(User)
@@ -51,7 +54,6 @@ def create_employee(
                 detail="Linked user account not found",
             )
 
-        # A user can have only one employee record.
         existing_employee = (
             db.query(Employee)
             .filter(Employee.user_id == data.user_id)
@@ -86,7 +88,7 @@ def list_employees(
 
 
 # 3. ADVANCED EMPLOYEE SEARCH AND FILTERS
-# IMPORTANT: Keep this route before /{employee_id}.
+# Keep this route before /{employee_id}.
 @router.get(
     "/search",
     response_model=list[EmployeeResponse],
@@ -102,32 +104,27 @@ def search_employees(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_roles("HR", "ADMIN")),
 ):
-    # Start with all employee records.
     query = db.query(Employee)
 
-    # 3.1 Search by employee name.
+    # Search by employee name.
     if name and name.strip():
         query = query.filter(
             Employee.full_name.ilike(f"%{name.strip()}%")
         )
 
-    # 3.2 Filter by department.
+    # Filter by department.
     if department and department.strip():
         query = query.filter(
-            Employee.department.ilike(
-                f"%{department.strip()}%"
-            )
+            Employee.department.ilike(f"%{department.strip()}%")
         )
 
-    # 3.3 Filter by designation.
+    # Filter by designation.
     if designation and designation.strip():
         query = query.filter(
-            Employee.designation.ilike(
-                f"%{designation.strip()}%"
-            )
+            Employee.designation.ilike(f"%{designation.strip()}%")
         )
 
-    # 3.4 Filter by linked user's account role.
+    # Filter by linked account role.
     if role and role.strip():
         normalized_role = role.strip().upper()
 
@@ -144,7 +141,7 @@ def search_employees(
             func.upper(User.role) == normalized_role
         )
 
-    # 3.5 Filter by employment status.
+    # Filter by employment status.
     if employee_status and employee_status.strip():
         normalized_status = employee_status.strip().upper()
 
@@ -158,7 +155,7 @@ def search_employees(
             func.upper(Employee.status) == normalized_status
         )
 
-    # 3.6 Filter by the latest attendance record for each employee.
+    # Filter by the latest attendance status.
     if attendance_status and attendance_status.strip():
         normalized_attendance = attendance_status.strip().upper()
 
@@ -175,7 +172,6 @@ def search_employees(
                 ),
             )
 
-        # Find the latest attendance date for each employee.
         latest_dates = (
             db.query(
                 Attendance.employee_id.label("employee_id"),
@@ -185,7 +181,6 @@ def search_employees(
             .subquery()
         )
 
-        # If multiple records share that date, select the highest ID.
         latest_ids = (
             db.query(
                 Attendance.employee_id.label("employee_id"),
@@ -200,7 +195,6 @@ def search_employees(
             .subquery()
         )
 
-        # Get employees whose latest attendance has the requested status.
         matching_attendance_employee_ids = (
             db.query(Attendance.employee_id)
             .join(
@@ -216,7 +210,7 @@ def search_employees(
             Employee.id.in_(matching_attendance_employee_ids)
         )
 
-    # 3.7 Filter by performance rating (1 to 5).
+    # Filter by performance rating.
     if performance_rating is not None:
         if not 1 <= performance_rating <= 5:
             raise HTTPException(
@@ -224,7 +218,6 @@ def search_employees(
                 detail="performance_rating must be between 1 and 5",
             )
 
-        # Find employees with at least one review matching this rating.
         matching_performance_employee_ids = (
             db.query(PerformanceReview.employee_id)
             .filter(
@@ -237,7 +230,6 @@ def search_employees(
             Employee.id.in_(matching_performance_employee_ids)
         )
 
-    # Return employees matching all supplied filters.
     return query.order_by(Employee.id).all()
 
 
@@ -286,15 +278,81 @@ def update_my_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    current_user.full_name = data.full_name
+    employee = (
+        db.query(Employee)
+        .filter(Employee.user_id == current_user.id)
+        .first()
+    )
 
-    db.commit()
-    db.refresh(current_user)
+    try:
+        current_user.full_name = data.full_name
+
+        # Keep the linked employee record consistent.
+        if employee is not None:
+            employee.full_name = data.full_name
+
+        db.commit()
+        db.refresh(current_user)
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to update your profile. Please try again.",
+        )
 
     return current_user
 
 
-# 6. GET EMPLOYEE BY ID
+# 6. CHANGE MY PASSWORD
+@router.put(
+    "/me/change-password",
+    status_code=status.HTTP_200_OK,
+)
+def change_my_password(
+    data: PasswordChange,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    # Verify the existing password.
+    if not verify_password(
+        data.current_password,
+        current_user.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Current password is incorrect.",
+        )
+
+    # Reject reuse of the existing password.
+    if verify_password(
+        data.new_password,
+        current_user.hashed_password,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password must be different from the current password.",
+        )
+
+    try:
+        # Store only the hashed password.
+        current_user.hashed_password = hash_password(
+            data.new_password
+        )
+
+        db.commit()
+
+    except Exception:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to change password. Please try again.",
+        )
+
+    return {"message": "Password changed successfully."}
+
+
+# 7. GET EMPLOYEE BY ID
 @router.get(
     "/{employee_id}",
     response_model=EmployeeResponse,
@@ -319,7 +377,7 @@ def get_employee(
     return employee
 
 
-# 7. UPDATE EMPLOYEE RECORD
+# 8. UPDATE EMPLOYEE RECORD
 @router.put(
     "/{employee_id}",
     response_model=EmployeeResponse,
@@ -344,7 +402,6 @@ def update_employee(
 
     updates = data.model_dump(exclude_unset=True)
 
-    # Prevent explicitly supplied null values.
     for field, value in updates.items():
         if value is None:
             raise HTTPException(

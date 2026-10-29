@@ -7,6 +7,7 @@ import {
   NavLink,
   useNavigate,
 } from "react-router-dom";
+
 import { useCallback, useEffect, useState } from "react";
 
 import Login from "./pages/Login";
@@ -23,6 +24,20 @@ import Employees from "./pages/Employees";
 import Payroll from "./pages/Payroll";
 import AdminUsers from "./pages/AdminUsers";
 import Shifts from "./pages/Shifts";
+import Onboarding from "./pages/Onboarding";
+
+// Module 22: Resignation & Exit Management
+import Resignations from "./pages/Resignations";
+
+// Module 23: Internal Announcements
+import Announcements from "./pages/Announcements";
+
+// Module 24: Task Assignment & Tracking
+import Tasks from "./pages/Tasks";
+
+// Module 26: Employee Feedback
+import Feedback from "./pages/Feedback";
+
 import Performance from "./Performance";
 import Analytics from "./Analytics";
 import Notifications from "./components/Notifications";
@@ -125,7 +140,7 @@ function AppLayout({ children }) {
     }
   }, []);
 
-  // Load the count initially and refresh every 30 seconds.
+  // Load initially and refresh every 30 seconds.
   useEffect(() => {
     fetchUnreadCount();
 
@@ -165,6 +180,7 @@ function AppLayout({ children }) {
           className="app-navigation-links"
           aria-label="Main navigation"
         >
+          {/* Dashboard */}
           <NavLink
             to={getDashboardPath()}
             className={({ isActive }) =>
@@ -174,7 +190,7 @@ function AppLayout({ children }) {
             Dashboard
           </NavLink>
 
-          {/* Module 19: Notifications with unread badge */}
+          {/* Module 19: Notifications */}
           <NavLink
             to="/notifications"
             className={({ isActive }) =>
@@ -191,6 +207,36 @@ function AppLayout({ children }) {
                 {unreadCount > 99 ? "99+" : unreadCount}
               </span>
             )}
+          </NavLink>
+
+          {/* Module 23: Internal Announcements */}
+          <NavLink
+            to="/announcements"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            Announcements
+          </NavLink>
+
+          {/* Module 24: Task Assignment & Tracking */}
+          <NavLink
+            to="/tasks"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            My Tasks
+          </NavLink>
+
+          {/* Module 26: Employee Feedback */}
+          <NavLink
+            to="/feedback"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            {isHRorAdmin ? "Feedback Dashboard" : "My Feedback"}
           </NavLink>
 
           {/* Admin navigation */}
@@ -264,6 +310,27 @@ function AppLayout({ children }) {
             </>
           )}
 
+          {/* Module 21: Employee Onboarding */}
+          <NavLink
+            to="/onboarding"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            My Onboarding
+          </NavLink>
+
+          {/* Module 22: Resignation & Exit Management */}
+          <NavLink
+            to="/resignations"
+            className={({ isActive }) =>
+              isActive ? "active" : ""
+            }
+          >
+            Resignation &amp; Exit
+          </NavLink>
+
+          {/* Profile */}
           <NavLink
             to="/profile"
             className={({ isActive }) =>
@@ -273,6 +340,7 @@ function AppLayout({ children }) {
             My Profile
           </NavLink>
 
+          {/* Attendance */}
           <NavLink
             to="/attendance"
             className={({ isActive }) =>
@@ -282,6 +350,7 @@ function AppLayout({ children }) {
             Attendance
           </NavLink>
 
+          {/* Leave Balance */}
           <NavLink
             to="/leaves/balance"
             className={({ isActive }) =>
@@ -291,6 +360,7 @@ function AppLayout({ children }) {
             Leave Balance
           </NavLink>
 
+          {/* Apply for Leave */}
           <NavLink
             to="/leaves/apply"
             className={({ isActive }) =>
@@ -300,6 +370,7 @@ function AppLayout({ children }) {
             Apply for Leave
           </NavLink>
 
+          {/* Leave Status */}
           <NavLink
             to="/leaves/status"
             className={({ isActive }) =>
@@ -309,6 +380,7 @@ function AppLayout({ children }) {
             Leave Status
           </NavLink>
 
+          {/* Leave Calendar */}
           <NavLink
             to="/leaves/calendar"
             className={({ isActive }) =>
@@ -318,6 +390,7 @@ function AppLayout({ children }) {
             Leave Calendar &amp; Team View
           </NavLink>
 
+          {/* Payroll */}
           <NavLink
             to="/payroll"
             className={({ isActive }) =>
@@ -453,6 +526,66 @@ function App() {
             <ProtectedRoute>
               <AppLayout>
                 <Notifications />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 23: Internal Announcements */}
+        <Route
+          path="/announcements"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Announcements />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 24: Task Assignment & Tracking */}
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Tasks />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 26: Employee Feedback */}
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Feedback />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 21: Employee Onboarding */}
+        <Route
+          path="/onboarding"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Onboarding />
+              </AppLayout>
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Module 22: Resignation & Exit Management */}
+        <Route
+          path="/resignations"
+          element={
+            <ProtectedRoute>
+              <AppLayout>
+                <Resignations />
               </AppLayout>
             </ProtectedRoute>
           }

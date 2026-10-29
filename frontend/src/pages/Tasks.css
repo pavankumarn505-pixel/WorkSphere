@@ -1,0 +1,258 @@
+
+.tasks-page {
+  max-width: 1150px;
+  margin: auto;
+  padding: 28px;
+  color: #172033;
+}
+
+.tasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+.tasks-eyebrow {
+  color: #2563eb;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 2px;
+}
+
+.tasks-header h1 {
+  margin: 8px 0;
+  font-size: 30px;
+}
+
+.tasks-header p:last-child {
+  color: #64748b;
+}
+
+.tasks-refresh,
+.tasks-submit {
+  padding: 11px 18px;
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tasks-submit:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tasks-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.tasks-summary-card {
+  padding: 20px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: white;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.tasks-summary-card span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.tasks-summary-card strong {
+  font-size: 27px;
+}
+
+.tasks-panel,
+.task-card {
+  padding: 22px;
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  margin-bottom: 22px;
+}
+
+.tasks-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.tasks-form label,
+.task-actions label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.tasks-form input,
+.tasks-form select,
+.tasks-form textarea,
+.task-actions select {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 11px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: white;
+  color: #172033;
+  font: inherit;
+}
+
+.tasks-full-width {
+  grid-column: 1 / -1;
+}
+
+.tasks-alert {
+  padding: 13px 16px;
+  border-radius: 8px;
+  margin-bottom: 18px;
+}
+
+.tasks-error {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.tasks-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.tasks-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.task-card {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.task-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.task-card h3 {
+  overflow-wrap: anywhere;
+}
+
+.task-priority,
+.task-overdue {
+  display: inline-block;
+  padding: 5px 9px;
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.task-priority.low {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.task-priority.medium {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.task-priority.high,
+.task-overdue {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.task-description {
+  color: #475569;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.task-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 18px 0;
+  padding: 14px 0;
+  border-top: 1px solid #e2e8f0;
+  border-bottom: 1px solid #e2e8f0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.task-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.task-actions label {
+  flex: 1;
+}
+
+.task-delete {
+  padding: 10px 12px;
+  background: #fff1f2;
+  color: #be123c;
+  border: 1px solid #fecdd3;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tasks-empty {
+  padding: 25px;
+  text-align: center;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  color: #64748b;
+}
+
+@media (max-width: 750px) {
+  .tasks-page {
+    padding: 16px;
+  }
+
+  .tasks-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tasks-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tasks-form,
+  .tasks-list {
+    grid-template-columns: 1fr;
+  }
+
+  .tasks-full-width {
+    grid-column: auto;
+  }
+}
+
+@media (max-width: 450px) {
+  .task-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
